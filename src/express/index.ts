@@ -36,6 +36,8 @@ for (const file of routeFiles) {
     });
 }
 
+app.get('/ping', (req, res) => res.sendStatus(200));
+
 app.listen(EXPRESS_PORT, () => {
     logger.info(`Express API listening on port ${EXPRESS_PORT}`)
 });
