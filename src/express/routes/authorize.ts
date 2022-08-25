@@ -29,7 +29,7 @@ const bech32Chain = (prefix: string) => ({
 export const routes = [
     {
         method: 'post',
-        path: '/authorize',
+        path: '/api/v1/authorize',
         execute: async (req, res) => {
             const { body } = req;
 

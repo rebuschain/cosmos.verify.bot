@@ -5,7 +5,7 @@ import { CustomError } from '../error';
 export const routes = [
     {
         method: 'post',
-        path: '/nonce',
+        path: '/api/v1/nonce',
         execute: async (req, res) => {
             const { body } = req;
 
