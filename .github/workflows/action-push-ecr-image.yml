@@ -1,0 +1,64 @@
+name: Pushes a Docker Image to ECR
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        required: false
+        type: string
+        default: us-east-1
+      build_number:
+        required: true
+        type: string
+    secrets:
+      ecr_repo:
+        required: true
+      aws_access_key_id:
+        required: true
+      aws_secret_access_key:
+        required: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v2.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Restore cached docker image
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-${{ inputs.ecr_repo }}-${{ github.run_id }}
+        with:
+          path: /tmp/${{ inputs.ecr_repo }}.tar
+          key: ${{ inputs.ecr_repo }}-${{ github.run_id }}
+          restore-keys: ${{ inputs.ecr_repo }}-${{ github.run_id }}
+
+      - name: Load Docker image
+        env:
+          ECR_REPO: ${{ inputs.ecr_repo }}
+        run: |
+          docker load --input /tmp/${ECR_REPO}.tar
+          export IMAGE_NAME="${{ steps.login-ecr.outputs.registry }}/${ECR_REPO}:${{ inputs.build_number }}"
+          export IMAGE_NAME_LATEST="${{ steps.login-ecr.outputs.registry }}/${ECR_REPO}:latest"
+          docker tag ${ECR_REPO}:latest ${IMAGE_NAME}
+          docker tag ${IMAGE_NAME} ${IMAGE_NAME_LATEST}
+          docker image ls -a
+
+      - name: Push
+        run: |
+          export IMAGE_NAME="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repo }}"
+          docker push "${IMAGE_NAME}:${{ inputs.build_number }}"
+          docker push "${IMAGE_NAME}:latest"

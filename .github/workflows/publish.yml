@@ -1,0 +1,23 @@
+name: Publishes the Docker Image
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+concurrency: publish
+jobs:
+  build:
+    uses: brovemberrain/raindrop.strapi/.github/workflows/action-build.yml@master
+    secrets:
+      ecr_repo: ${{ secrets.ECR_REPO }}
+
+  publish:
+    uses: brovemberrain/raindrop.strapi/.github/workflows/action-push-ecr-image.yml@master
+    needs: [build]
+    with:
+      aws_region: us-east-1
+      build_number: ${{ github.run_id }}
+    secrets:
+      ecr_repo: ${{ secrets.ECR_REPO }}
+      aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
