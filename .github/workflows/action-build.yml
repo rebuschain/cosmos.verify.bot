@@ -65,15 +65,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./deploy/Dockerfile
-          tags: ${{ inputs.ecr_repo }}:latest
-          outputs: type=docker,dest=/tmp/${{ inputs.ecr_repo }}.tar
+          file: ./Dockerfile
+          tags: ${{ secrets.ecr_repo }}:latest
+          outputs: type=docker,dest=/tmp/${{ secrets.ecr_repo }}.tar
 
       - name: Cache build
         uses: actions/cache@v3
         env:
-          cache-name: cache-${{ inputs.ecr_repo }}-${{ github.run_id }}
+          cache-name: cache-${{ secrets.ecr_repo }}-${{ github.run_id }}
         with:
-          path: /tmp/${{ inputs.ecr_repo }}.tar
-          key: ${{ inputs.ecr_repo }}-${{ github.run_id }}
-          restore-keys: ${{ inputs.ecr_repo }}-${{ github.run_id }}
+          path: /tmp/${{ secrets.ecr_repo }}.tar
+          key: ${{ secrets.ecr_repo }}-${{ github.run_id }}
+          restore-keys: ${{ secrets.ecr_repo }}-${{ github.run_id }}

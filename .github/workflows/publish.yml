@@ -7,12 +7,12 @@ on:
 concurrency: publish
 jobs:
   build:
-    uses: brovemberrain/raindrop.strapi/.github/workflows/action-build.yml@master
+    uses: rebuschain/cosmos.verify.bot/.github/workflows/action-build.yml@master
     secrets:
       ecr_repo: ${{ secrets.ECR_REPO }}
 
   publish:
-    uses: brovemberrain/raindrop.strapi/.github/workflows/action-push-ecr-image.yml@master
+    uses: rebuschain/cosmos.verify.bot/.github/workflows/action-push-ecr-image.yml@master
     needs: [build]
     with:
       aws_region: us-east-1

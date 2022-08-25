@@ -54,22 +54,22 @@ They are only available for existing roles in the discord server.
 NOTE: These commands only manage the role configuration in the discord bot, it does not create/remove roles in the server itself.
 
 Add role:
-``
+```
 /role add role:{role} token-id:{tokenId} min-balance:{minBalance} meta-condition:{metaCondition}
 ```
 
 Update role:
-``
+```
 /role update role:{role} token-id:{tokenId} min-balance:{minBalance} meta-condition:{metaCondition}
 ```
 
 Remove role:
-``
+```
 /role remove role:{role}
 ```
 
 List roles:
-``
+```
 /role list
 ```
 

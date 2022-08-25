@@ -40,15 +40,15 @@ jobs:
       - name: Restore cached docker image
         uses: actions/cache@v3
         env:
-          cache-name: cache-${{ inputs.ecr_repo }}-${{ github.run_id }}
+          cache-name: cache-${{ secrets.ecr_repo }}-${{ github.run_id }}
         with:
-          path: /tmp/${{ inputs.ecr_repo }}.tar
-          key: ${{ inputs.ecr_repo }}-${{ github.run_id }}
-          restore-keys: ${{ inputs.ecr_repo }}-${{ github.run_id }}
+          path: /tmp/${{ secrets.ecr_repo }}.tar
+          key: ${{ secrets.ecr_repo }}-${{ github.run_id }}
+          restore-keys: ${{ secrets.ecr_repo }}-${{ github.run_id }}
 
       - name: Load Docker image
         env:
-          ECR_REPO: ${{ inputs.ecr_repo }}
+          ECR_REPO: ${{ secrets.ecr_repo }}
         run: |
           docker load --input /tmp/${ECR_REPO}.tar
           export IMAGE_NAME="${{ steps.login-ecr.outputs.registry }}/${ECR_REPO}:${{ inputs.build_number }}"
@@ -59,6 +59,6 @@ jobs:
 
       - name: Push
         run: |
-          export IMAGE_NAME="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repo }}"
+          export IMAGE_NAME="${{ steps.login-ecr.outputs.registry }}/${{ secrets.ecr_repo }}"
           docker push "${IMAGE_NAME}:${{ inputs.build_number }}"
           docker push "${IMAGE_NAME}:latest"
