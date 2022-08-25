@@ -1,0 +1,55 @@
+{
+  "name": "cosmos-verify-bot",
+  "version": "1.0.0",
+  "description": "Discord bot to verify a user's NFT ownership and assign them a role based on it",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn ./src/index.ts",
+    "deploy-commands": "ts-node ./src/discord/deploy-commands.ts",
+    "lint": "eslint . --ext .ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rebuschain/cosmos.verify.bot.git"
+  },
+  "keywords": [
+    "cosmos",
+    "rebus",
+    "verify"
+  ],
+  "author": "ericky@codeparticle.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rebuschain/cosmos.verify.bot/issues"
+  },
+  "homepage": "https://github.com/rebuschain/cosmos.verify.bot#readme",
+  "dependencies": {
+    "@discordjs/rest": "^1.1.0",
+    "@hanchon/ethermint-address-converter": "^1.1.0",
+    "@keplr-wallet/cosmos": "^0.10.18",
+    "body-parser": "^1.20.0",
+    "cors": "^2.8.5",
+    "discord.js": "^14.3.0",
+    "dotenv": "^16.0.1",
+    "ethers": "^5.7.0",
+    "express": "^4.18.1",
+    "express-winston": "^4.2.0",
+    "knex": "^2.2.0",
+    "pg": "^8.7.3",
+    "web3": "^1.7.5",
+    "winston": "^3.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "4",
+    "@types/node": "16",
+    "@typescript-eslint/eslint-plugin": "^5.34.0",
+    "@typescript-eslint/parser": "^5.34.0",
+    "eslint": "^8.21.0",
+    "nodemon": "^2.0.19",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^4.7.4"
+  }
+}
