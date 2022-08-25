@@ -65,7 +65,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
 
     const rolesAddedList = rolesAdded.length ? formatBulletPointList(rolesAdded, 'You have been added to the following roles:') : '';
     const rolesRemovedList = rolesRemoved.length ? formatBulletPointList(rolesRemoved, 'You have been removed from the following roles:') : '';
-    const content = `For server: ${server.name} (${server.id})\n${rolesAddedList}\n${rolesRemovedList}`.trim();
+    const content = `For server: ${server.name} (${server.id})\n${rolesAddedList}${rolesAdded.length ? '\n' : ''}${rolesRemovedList}`;
 
     if (rolesAdded.length || rolesRemoved.length) {
         await member.send(content);

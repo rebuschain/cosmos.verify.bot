@@ -1,0 +1,40 @@
+{
+    "family": "cosmos-verify-bot",
+    "taskRoleArn": "${TASK_ROLE_ARN}",
+    "executionRoleArn": "${TASK_EXECUTION_ROLE_ARN}",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "512",
+    "memory": "1024",
+    "containerDefinitions": [{
+      "name": "bot",
+      "image": "073696056884.dkr.ecr.us-east-1.amazonaws.com/cosmos-verify-bot:latest",
+      "portMappings": [{
+        "containerPort": 3000
+      }],
+      "essential": true,
+      "environment": [],
+      "secrets": [{
+        "name": "DEFAULT_CONTRACT",
+        "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/DefaultContract"
+      }, {
+        "name": "DB_DSN",
+        "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/DbDsn"
+      }, {
+        "name": "TOKEN",
+        "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/Token"
+      }, {
+        "name": "CLIENT_ID",
+        "valueFrom": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/ClientId"
+      }],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "${AWS_LOG_GROUP}",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "${ENV}"
+        }
+      }
+    }]
+  }
+  

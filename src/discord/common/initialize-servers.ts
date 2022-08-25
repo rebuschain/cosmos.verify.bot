@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, GuildChannelCreateOptions, MessagePayload, PermissionFlagsBits, TextBasedChannel, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, GuildChannelCreateOptions, MessagePayload, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { logger } from '../../logger';
 import { pg } from '../../db/connection';
 import { client } from '../client';
