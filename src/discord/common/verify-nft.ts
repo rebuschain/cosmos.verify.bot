@@ -13,14 +13,25 @@ const {
     EXPLORER_URL,
 } = process.env;
 
+let contractAbiFetchedAt = 0;
+let contractAbi: any;
+
 const getContractAbi = async (contractAddress = '') => {
+    if (contractAbi && (Date.now() + 300000) >= contractAbiFetchedAt) {
+        return contractAbi;
+    }
+
+    contractAbiFetchedAt = Date.now();
+
     const res = await axios.get(`${EXPLORER_URL}?module=contract&action=getabi&address=${contractAddress || DEFAULT_CONTRACT}`);
 
     if (res.data?.status !== '1') {
         throw new Error(res.data?.result || 'Failed to get contract abi');
     }
 
-    return JSON.parse(res.data?.result || '{}');
+    contractAbi = JSON.parse(res.data?.result || '{}');
+
+    return contractAbi;
 };
 
 const getContract = async (contractAddress = '') => {
@@ -38,6 +49,13 @@ const ownerOf = async (tokenId: string, contractAddress = '') => {
     return owner;
 };
 
+const balanceOf = async (address, contractAddress = '') => {
+    const contract = await getContract(contractAddress);
+    const balance = await contract.methods.balanceOf(address).call();
+
+    return parseFloat(balance) || 0;
+};
+
 const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serverRoles: Role[], member: GuildMember, addresses: string[]) => {
     const serverId = server.id;
     const userId = member.user.id;
@@ -46,17 +64,31 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
 
     for (const role of serverRoles) {
         const roleName = server?.roles.cache.get(role.externalId)?.name as string;
-        const logInfo = { addresses, userId, serverId, roleId: role.id, roleName, externalRoleId: role.externalId, tokenId: role.tokenId };
+        const logInfo = { addresses, userId, serverId, role };
         const userHasRole = !!member.roles.cache.get(role.externalId);
+
         const roleHasTokenId = role.tokenId?.length > 0;
         const tokenOwner = roleHasTokenId ? await ownerOf(role.tokenId, serverConfig.contractAddress as string) : null;
-        const userOwnsToken = tokenOwner && addresses.includes(tokenOwner);
+        let userHasAccessToRole = tokenOwner && addresses.includes(tokenOwner);
 
-        if (userHasRole && !userOwnsToken) {
+        const minBalance = parseFloat(role.minBalance);
+
+        if (!isNaN(minBalance) && !userHasAccessToRole) {
+            for (const address of addresses) {
+                const balance = await balanceOf(address, serverConfig.contractAddress as string);
+
+                if (balance >= minBalance) {
+                    userHasAccessToRole = true;
+                    break;
+                }
+            }
+        }
+
+        if (userHasRole && !userHasAccessToRole) {
             logger.info('Removing role from user', logInfo);
             await member.roles.remove(role.externalId as string);
             rolesRemoved.push(roleName);
-        } else if (!userHasRole && userOwnsToken) {
+        } else if (!userHasRole && userHasAccessToRole) {
             logger.info('Adding role to user', logInfo);
             await member.roles.add(role.externalId as string);                    
             rolesAdded.push(roleName);

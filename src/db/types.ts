@@ -12,7 +12,7 @@ export type Role = {
     serverId: number;
     externalServerId: string;
     tokenId: string;
-    minBalance: number;
+    minBalance: string;
     metaCondition: string;
 }
 
