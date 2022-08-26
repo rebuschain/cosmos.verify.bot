@@ -1,5 +1,9 @@
 # Cosmos Verify Bot
 
+## Bot Invite Link
+
+https://discord.com/api/oauth2/authorize?client_id=1007701210977030276&permissions=1099780066320&scope=bot%20applications.commands
+
 ## Environment
 
 The environment variables should all be explained inside the .env file
