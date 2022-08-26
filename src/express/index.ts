@@ -6,12 +6,14 @@ import path from 'path';
 import { CustomError, handleError } from './error';
 import { expressLogger, logger } from '../logger';
 
-const { EXPRESS_PORT } = process.env;
+const { EXPRESS_PORT, USE_CORS, WALLET_CONNECT_URL } = process.env;
 
 const app = express();
 
 app.use(expressLogger);
-app.use(cors());
+app.use(cors({
+    origin: USE_CORS === 'true' ? WALLET_CONNECT_URL : '*',
+}));
 app.use(bodyParser.urlencoded({
     extended: true
 }));
