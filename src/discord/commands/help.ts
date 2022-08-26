@@ -1,4 +1,4 @@
-import { CommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { CommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { formatBulletPointList } from '../utils/messages';
 
 export const name = 'help';
@@ -6,6 +6,7 @@ export const name = 'help';
 export const data = new SlashCommandBuilder()
     .setName('help')
     .setDescription('Displays info about the server')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator | PermissionFlagsBits.ManageRoles)
     .addSubcommand(subcommand =>
 		subcommand
 			.setName('authorize')
@@ -38,9 +39,10 @@ ${formatBulletPointList([
         case 'role':
             interaction.reply({ content: `Command only available for admin users. It is used to get/list/add/remove/update the role configuration of the server.
 ${formatBulletPointList([
-    'token-id: The NFT token id which will be required for the user to be assigned to the specified role',
-    'min-balance: The minimum balance required for the user to be assigned to the specified role',
-    '(TODO) meta-condition: The condition that the meta properties of the NFT must be matched to in order for the user to be assigned to the specified role',
+    'token-id: The NFT token id which will be required for the user to be assigned to the specified role (Setting to less than 0 will make it be removed)',
+    'min-balance: The minimum balance required for the user to be assigned to the specified role (Setting to less than 0 will make it be removed)',
+    `meta-condition: The condition that the meta properties of the NFT must be matched to in order for the user to be assigned to the specified role (Setting to "null" will make it be removed)
+    Example: "name === 'Spooky Pet #3462' && !!attributes.find((attr) => attr.trait_type === 'Landscape')"`,
 ], 'The updateable properties are:')}`, ephemeral: true });
             break;
         case 'server':

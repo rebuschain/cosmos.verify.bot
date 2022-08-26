@@ -1,5 +1,6 @@
 import axios from 'axios';
 import Web3 from 'web3';
+import safeEval from 'safe-eval';
 import { Guild, GuildMember } from 'discord.js';
 import { logger } from '../../logger';
 import { pg } from '../../db/connection';
@@ -13,15 +14,18 @@ const {
     EXPLORER_URL,
 } = process.env;
 
+const CACHE_TIME = 300000;
+
 let contractAbiFetchedAt = 0;
 let contractAbi: any;
 
+const tokenMetaFetchedAtMap: { [tokenId: string]: any } = {};
+const tokenMetaCache: { [tokenId: string]: any } = {};
+
 const getContractAbi = async (contractAddress = '') => {
-    if (contractAbi && (Date.now() + 300000) >= contractAbiFetchedAt) {
+    if (contractAbi && (Date.now() + CACHE_TIME) >= contractAbiFetchedAt) {
         return contractAbi;
     }
-
-    contractAbiFetchedAt = Date.now();
 
     const res = await axios.get(`${EXPLORER_URL}?module=contract&action=getabi&address=${contractAddress || DEFAULT_CONTRACT}`);
 
@@ -29,6 +33,7 @@ const getContractAbi = async (contractAddress = '') => {
         throw new Error(res.data?.result || 'Failed to get contract abi');
     }
 
+    contractAbiFetchedAt = Date.now();
     contractAbi = JSON.parse(res.data?.result || '{}');
 
     return contractAbi;
@@ -43,20 +48,56 @@ const getContract = async (contractAddress = '') => {
 };
 
 const ownerOf = async (tokenId: string, contractAddress = '') => {
-    const contract = await getContract(contractAddress);
-    const owner = await contract.methods.ownerOf(tokenId).call();
+    try {
+        const contract = await getContract(contractAddress);
+        const owner = await contract.methods.ownerOf(tokenId).call();
 
-    return owner;
+        return owner;
+    } catch (err) {
+        logger.error('Failed to get token owner', { tokenId, contractAddress, err });
+        return null;
+    }
 };
 
 const balanceOf = async (address, contractAddress = '') => {
-    const contract = await getContract(contractAddress);
-    const balance = await contract.methods.balanceOf(address).call();
+    try {
+        const contract = await getContract(contractAddress);
+        const balance = await contract.methods.balanceOf(address).call();
 
-    return parseFloat(balance) || 0;
+        return parseFloat(balance) || 0;
+    } catch (err) {
+        logger.error('Failed to get token balance', { address, contractAddress, err });
+        return null;
+    }
 };
 
-const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serverRoles: Role[], member: GuildMember, addresses: string[]) => {
+const getTokenMeta = async (tokenId: string, contractAddress = '') => {
+    try {
+        if (typeof tokenMetaCache[tokenId] !== 'undefined' && (Date.now() + CACHE_TIME) >= tokenMetaFetchedAtMap[tokenId]) {
+            return tokenMetaCache[tokenId];
+        }
+
+        const contract = await getContract(contractAddress);
+        const tokenURI = await contract.methods.getTokenURI(tokenId).call();
+
+        if (tokenURI) {
+            const res = await axios.get(tokenURI, { headers: { 'Content-Type': 'application/json' } });
+            const tokenMeta = res.data || null;
+
+            tokenMetaFetchedAtMap[tokenId] = Date.now();
+            tokenMetaCache[tokenId] = tokenMeta;
+
+            return tokenMeta;
+        }
+
+        return null;
+    } catch (err) {
+        logger.error('Failed to get token meta', { tokenId, contractAddress, err });
+        return null;
+    }
+};
+
+const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serverRoles: Role[], member: GuildMember, addresses: string[], isRoleDeleted = false) => {
     const serverId = server.id;
     const userId = member.user.id;
     const rolesAdded: string[] = [];
@@ -67,20 +108,41 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
         const roleName = server?.roles.cache.get(role.externalId)?.name as string;
         const logInfo = { addresses, userId, serverId, role };
         const userHasRole = !!member.roles.cache.get(role.externalId);
+        let userHasAccessToRole = false;
 
-        const roleHasTokenId = parseInt(role.tokenId, 10) >= 0;
-        const tokenOwner = roleHasTokenId ? await ownerOf(role.tokenId, serverConfig.contractAddress as string) : null;
-        let userHasAccessToRole = tokenOwner && addresses.includes(tokenOwner);
+        if (!isRoleDeleted) {
+            const roleHasTokenId = parseInt(role.tokenId, 10) >= 0;
+            const tokenOwner = roleHasTokenId ? await ownerOf(role.tokenId, serverConfig.contractAddress as string) : null;
+            userHasAccessToRole = tokenOwner && addresses.includes(tokenOwner);
 
-        const minBalance = parseFloat(role.minBalance);
+            const minBalance = parseFloat(role.minBalance);
 
-        if (!isNaN(minBalance) && minBalance > 0 && !userHasAccessToRole) {
-            for (const address of addresses) {
-                const balance = await balanceOf(address, serverConfig.contractAddress as string);
+            if (!isNaN(minBalance) && minBalance > 0) {
+                userHasAccessToRole = false;
 
-                if (balance >= minBalance) {
-                    userHasAccessToRole = true;
-                    break;
+                for (const address of addresses) {
+                    const balance = await balanceOf(address, serverConfig.contractAddress as string);
+
+                    if (balance !== null && balance >= minBalance) {
+                        userHasAccessToRole = true;
+                        break;
+                    }
+                }
+            }
+
+            if (role.metaCondition) {
+                userHasAccessToRole = false;
+                const meta = await getTokenMeta(role.tokenId);
+
+                if (meta) {
+                    try {
+                        logger.info('Evaluating meta condition', logInfo);
+                        userHasAccessToRole = !!safeEval(role.metaCondition, meta);
+                    } catch (error: any) {
+                        if (!error?.message?.includes('Cannot read properties of undefined')) {
+                            logger.error('Failed to evaluate meta condition', logInfo);
+                        }
+                    }
                 }
             }
         }
@@ -114,6 +176,95 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
 
     if (rolesAdded.length || rolesRemoved.length) {
         await member.send(content);
+    }
+};
+
+export const verifyNftForServer = async (server: Guild) => {
+    const logInfo = { serverId: server.id };
+
+    try {
+        logger.info('Verifying users for server', logInfo);
+
+        const holders: Holder[] = await pg.queryBuilder()
+            .select('ethAddress', 'userId')
+            .from('holder')
+            .where('externalServerId', '=', server.id);
+        const holdersByUserId = holders.reduce((acc, holder) => {
+            if (!acc[holder.userId]) {
+                acc[holder.userId] = [holder];
+            } else {
+                acc[holder.userId].push(holder);
+            }
+            return acc;
+        }, {} as { [userId: string]: Holder[] });
+
+        const serverRoles: Role[] = await pg.queryBuilder()
+            .select('*')
+            .from('role')
+            .where('externalServerId', '=', server.id);
+
+        const serverConfig: ServerConfig = await pg.queryBuilder()
+            .select('contractAddress')
+            .from('server')
+            .where('externalId', '=', server.id)
+            .first();
+
+        await server.members.fetch();
+
+        for (const member of server.members.cache.values()) {
+            const holders = holdersByUserId[member.id];
+            if (!holders) {
+                continue;
+            }
+
+            await verifyNftForUser(server, serverConfig, serverRoles, member, holders.map(({ ethAddress }) => ethAddress));
+        }
+
+        logger.info('Finished verifying users for server', logInfo);
+    } catch (error) {
+        logger.error('Error verify users for server', { ...logInfo, error });
+    }
+};
+
+export const verifyNftForRole = async (server: Guild, role: Role, isRoleDeleted = false) => {
+    const logInfo = { serverId: server.id, role };
+
+    try {
+        logger.info('Verifying users for role', logInfo);
+
+        const holders: Holder[] = await pg.queryBuilder()
+            .select('ethAddress', 'userId')
+            .from('holder')
+            .where('externalServerId', '=', server.id);
+        const holdersByUserId = holders.reduce((acc, holder) => {
+            if (!acc[holder.userId]) {
+                acc[holder.userId] = [holder];
+            } else {
+                acc[holder.userId].push(holder);
+            }
+            return acc;
+        }, {} as { [userId: string]: Holder[] });
+
+        const serverConfig: ServerConfig = await pg.queryBuilder()
+            .select('contractAddress')
+            .from('server')
+            .where('externalId', '=', server.id)
+            .first();
+
+        await server.members.fetch();
+
+        for (const member of server.members.cache.values()) {
+            const holders = holdersByUserId[member.id];
+            if (!holders) {
+                continue;
+            }
+
+            await verifyNftForUser(server, serverConfig, [role], member, holders.map(({ ethAddress }) => ethAddress), isRoleDeleted);
+        }
+
+        logger.info('Finished verifying users for role', logInfo);
+    } catch (error) {
+        logger.error('Error verify users for role', { ...logInfo, error });
     }
 };
 
@@ -179,7 +330,7 @@ export const verifyNftForAllUsers = async () => {
 
         logger.info('Finished verifying all users');
     } catch (error) {
-        logger.error('Error verify all users', error);
+        logger.error('Error verify all users', { error });
     }
 };
 

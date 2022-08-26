@@ -1,6 +1,7 @@
 import { CommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { Role, ServerConfig } from '../../db/types';
 import { pg } from '../../db/connection';
+import { verifyNftForRole } from '../common/verify-nft';
 import { logger } from '../../logger';
 import { formatBulletPointList } from '../utils/messages';
 
@@ -26,9 +27,9 @@ export const data = new SlashCommandBuilder()
 			.setName('add')
 			.setDescription('Adds a role configuration to the server configuration')
 			.addRoleOption(option => option.setName('role').setDescription('The role').setRequired(true))
-            .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("null" to remove)'))
-            .addNumberOption(option => option.setName('min-balance').setDescription('[Not Implemented]: The min balance of the token required ("null" to remove)'))
-            .addStringOption(option => option.setName('meta-condition').setDescription('[Not Implemented]: The dynamic meta condition of the token required ("null" to remove)'))
+            .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("-1" to remove)'))
+            .addNumberOption(option => option.setName('min-balance').setDescription('The min balance of the token required ("-1" to remove)'))
+            .addStringOption(option => option.setName('meta-condition').setDescription('The dynamic meta condition of the token required ("null" to remove)'))
     )
     .addSubcommand(subcommand =>
 		subcommand
@@ -41,10 +42,28 @@ export const data = new SlashCommandBuilder()
 			.setName('update')
 			.setDescription('Updates the configuration for a role')
 			.addRoleOption(option => option.setName('role').setDescription('The role').setRequired(true))
-            .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("null" to remove)'))
-            .addNumberOption(option => option.setName('min-balance').setDescription('[Not Implemented]: The min balance of the token required ("null" to remove)'))
-            .addStringOption(option => option.setName('meta-condition').setDescription('[Not Implemented]: The dynamic meta condition of the token required ("null" to remove)'))
+            .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("-1" to remove)'))
+            .addNumberOption(option => option.setName('min-balance').setDescription('The min balance of the token required ("-1" to remove)'))
+            .addStringOption(option => option.setName('meta-condition').setDescription('The dynamic meta condition of the token required ("null" to remove)'))
     );
+
+const getRoleProperties = (interaction: CommandInteraction) => {
+    let tokenId = interaction.options.get('token-id')?.value as number | null;
+    if (typeof tokenId !== 'undefined') {
+        tokenId = !tokenId || tokenId < 0 ? null : tokenId;
+    }
+    let minBalance = interaction.options.get('min-balance')?.value as number | null;
+    minBalance = !minBalance || minBalance < 0 ? null : minBalance;
+    if (typeof minBalance !== 'undefined') {
+        minBalance = !minBalance || minBalance < 0 ? null : minBalance;
+    }
+    let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
+    if (typeof metaCondition !== 'undefined') {
+        metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
+    }
+
+    return { tokenId, minBalance, metaCondition };
+}
 
 const roleList = async (interaction: CommandInteraction) => {
     const serverId = interaction.guild?.id;
@@ -120,13 +139,7 @@ const roleGet = async (interaction: CommandInteraction) => {
 const roleAdd = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
     const { role } = target;
-    let tokenId = interaction.options.get('token-id')?.value as number | null;
-    tokenId = !tokenId || tokenId < 0 ? null : tokenId;
-    let minBalance = interaction.options.get('min-balance')?.value as number | null;
-    minBalance = !minBalance || minBalance < 0 ? null : minBalance;
-    // TODO: Integrate metaCondition
-    let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
-    metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
+    const { tokenId, minBalance, metaCondition } = getRoleProperties(interaction);
     const serverId = interaction.guild?.id;
     const logInfo = { serverId, roleId: role?.id, roleName: role?.name, tokenId, minBalance, metaCondition };
 
@@ -163,6 +176,16 @@ const roleAdd = async (interaction: CommandInteraction) => {
                     });
 
                 interaction.reply({ content: `Role configuration "${role.name}" added`, ephemeral: true });
+
+                if (typeof tokenId !== 'undefined' || typeof minBalance !== 'undefined' || typeof metaCondition !== 'undefined') {
+                    const roleConfig: Role = await pg.queryBuilder()
+                        .select('*')
+                        .from('role')
+                        .where('externalId', '=', role.id)
+                        .first();
+
+                    await verifyNftForRole(interaction.guild, roleConfig);
+                }
             } else {
                 interaction.reply({ content: 'Role configuration is already added', ephemeral: true });
             }
@@ -187,12 +210,22 @@ const roleRemove = async (interaction: CommandInteraction) => {
         if (role && serverId) {
             logger.info('Removing role', { serverId, roleId: role.id, roleName: role.name });
 
-            await pg.queryBuilder()
+            const roleConfig = await pg.queryBuilder()
+                .select('*')
                 .from('role')
                 .where('externalId', '=', role.id)
-                .delete();
+                .first();
+
+            if (roleConfig) {
+                await pg.queryBuilder()
+                    .from('role')
+                    .where('externalId', '=', role.id)
+                    .delete();
+            }
 
             interaction.reply({ content: `Role configuration "${role.name}" removed`, ephemeral: true });
+
+            await verifyNftForRole(interaction.guild, roleConfig, true);
         } else {
             interaction.reply({ content: 'No role configuration found', ephemeral: true });
         }
@@ -209,14 +242,8 @@ const roleRemove = async (interaction: CommandInteraction) => {
 
 const roleUpdate = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
-    let tokenId = interaction.options.get('token-id')?.value as number | null;
-    tokenId = !tokenId || tokenId < 0 ? null : tokenId;
-    let minBalance = interaction.options.get('min-balance')?.value as number | null;
-    minBalance = !minBalance || minBalance < 0 ? null : minBalance;
-    // TODO: Integrate metaCondition
-    let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
-    metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
     const { role } = target;
+    const { tokenId, minBalance, metaCondition } = getRoleProperties(interaction);
     const serverId = interaction.guild?.id;
     const logInfo = { serverId, roleId: role?.id, roleName: role?.name, tokenId, minBalance, metaCondition };
 
@@ -243,6 +270,16 @@ const roleUpdate = async (interaction: CommandInteraction) => {
                     });
 
                 interaction.reply({ content: 'Role configuration has been updated', ephemeral: true });
+
+                if (typeof tokenId !== 'undefined' || typeof minBalance !== 'undefined' || typeof metaCondition !== 'undefined') {
+                    const roleConfig: Role = await pg.queryBuilder()
+                        .select('*')
+                        .from('role')
+                        .where('id', '=', existingRole.id)
+                        .first();
+
+                    await verifyNftForRole(interaction.guild, roleConfig);
+                }
             }
         } else {
             interaction.reply({ content: 'No role found', ephemeral: true });
