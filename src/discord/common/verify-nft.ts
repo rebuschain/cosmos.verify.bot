@@ -61,6 +61,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
     const userId = member.user.id;
     const rolesAdded: string[] = [];
     const rolesRemoved: string[] = [];
+    const rolesWithPermissionError: string[] = [];
 
     for (const role of serverRoles) {
         const roleName = server?.roles.cache.get(role.externalId)?.name as string;
@@ -84,15 +85,27 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
             }
         }
 
-        if (userHasRole && !userHasAccessToRole) {
-            logger.info('Removing role from user', logInfo);
-            await member.roles.remove(role.externalId as string);
-            rolesRemoved.push(roleName);
-        } else if (!userHasRole && userHasAccessToRole) {
-            logger.info('Adding role to user', logInfo);
-            await member.roles.add(role.externalId as string);                    
-            rolesAdded.push(roleName);
+        try {
+            if (userHasRole && !userHasAccessToRole) {
+                logger.info('Removing role from user', logInfo);
+                await member.roles.remove(role.externalId as string);
+                rolesRemoved.push(roleName);
+            } else if (!userHasRole && userHasAccessToRole) {
+                logger.info('Adding role to user', logInfo);
+                await member.roles.add(role.externalId as string);                    
+                rolesAdded.push(roleName);
+            }
+        } catch (err: any) {
+            if (err?.status === 403) {
+                rolesWithPermissionError.push(roleName);
+            } else {
+                throw err;
+            }
         }
+    }
+
+    if (rolesWithPermissionError.length > 0) {
+        await server.members.cache.get(server.ownerId)?.send(formatBulletPointList(rolesWithPermissionError, `The following roles are not manageable by the bot on server "${server.name}":`));
     }
 
     const rolesAddedList = rolesAdded.length ? formatBulletPointList(rolesAdded, 'You have been added to the following roles:') : '';
