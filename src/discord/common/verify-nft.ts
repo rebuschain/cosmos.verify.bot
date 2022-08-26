@@ -67,13 +67,13 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
         const logInfo = { addresses, userId, serverId, role };
         const userHasRole = !!member.roles.cache.get(role.externalId);
 
-        const roleHasTokenId = role.tokenId?.length > 0;
+        const roleHasTokenId = parseInt(role.tokenId, 10) >= 0;
         const tokenOwner = roleHasTokenId ? await ownerOf(role.tokenId, serverConfig.contractAddress as string) : null;
         let userHasAccessToRole = tokenOwner && addresses.includes(tokenOwner);
 
         const minBalance = parseFloat(role.minBalance);
 
-        if (!isNaN(minBalance) && !userHasAccessToRole) {
+        if (!isNaN(minBalance) && minBalance > 0 && !userHasAccessToRole) {
             for (const address of addresses) {
                 const balance = await balanceOf(address, serverConfig.contractAddress as string);
 

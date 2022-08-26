@@ -120,10 +120,10 @@ const roleGet = async (interaction: CommandInteraction) => {
 const roleAdd = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
     const { role } = target;
-    let tokenId = interaction.options.get('token-id')?.value as string | null;
-    tokenId = tokenId?.toLowerCase() === 'null' ? null : tokenId;
-    let minBalance = interaction.options.get('min-balance')?.value as string | null;
-    minBalance = minBalance?.toLowerCase() === 'null' ? null : minBalance;
+    let tokenId = interaction.options.get('token-id')?.value as number | null;
+    tokenId = !tokenId || tokenId < 0 ? null : tokenId;
+    let minBalance = interaction.options.get('min-balance')?.value as number | null;
+    minBalance = !minBalance || minBalance < 0 ? null : minBalance;
     // TODO: Integrate metaCondition
     let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
     metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
@@ -209,10 +209,10 @@ const roleRemove = async (interaction: CommandInteraction) => {
 
 const roleUpdate = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
-    let tokenId = interaction.options.get('token-id')?.value as string | null;
-    tokenId = tokenId?.toLowerCase() === 'null' ? null : tokenId;
-    let minBalance = interaction.options.get('min-balance')?.value as string | null;
-    minBalance = minBalance?.toLowerCase() === 'null' ? null : minBalance;
+    let tokenId = interaction.options.get('token-id')?.value as number | null;
+    tokenId = !tokenId || tokenId < 0 ? null : tokenId;
+    let minBalance = interaction.options.get('min-balance')?.value as number | null;
+    minBalance = !minBalance || minBalance < 0 ? null : minBalance;
     // TODO: Integrate metaCondition
     let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
     metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
@@ -223,14 +223,6 @@ const roleUpdate = async (interaction: CommandInteraction) => {
     try {
         if (role && serverId) {
             logger.info('Adding role', logInfo);
-
-            if (tokenId && isNaN(parseInt(tokenId as string, 10))) {
-                return interaction.reply({ content: `Invalid token ID: ${tokenId}`, ephemeral: true });
-            }
-
-            if (minBalance && isNaN(parseFloat(minBalance as string))) {
-                return interaction.reply({ content: `Invalid token ID: ${tokenId}`, ephemeral: true });
-            }
 
             const existingRole: Role = await pg.queryBuilder()
                 .select('*')
