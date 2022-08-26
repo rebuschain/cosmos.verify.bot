@@ -1,8 +1,11 @@
 import { CommandInteraction, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { pg } from '../../db/connection';
 import { logger } from '../../logger';
+import { formatBulletPointList } from '../utils/messages';
+import { verifyNftForServer } from '../common/verify-nft';
+import { ServerConfig } from 'src/db/types';
 
-export const name = 'roleAdd';
+export const name = 'server';
 
 export const data = new SlashCommandBuilder()
     .setName('server')
@@ -10,10 +13,47 @@ export const data = new SlashCommandBuilder()
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator | PermissionFlagsBits.ManageRoles)
     .addSubcommand(subcommand =>
 		subcommand
+			.setName('get')
+			.setDescription('Gets the configuration for the server')
+    )
+    .addSubcommand(subcommand =>
+		subcommand
 			.setName('update')
 			.setDescription('Updates the configuration for a server')
 			.addStringOption(option => option.setName('contract-address').setDescription('The ERC721 contract address ("null" to remove)'))
     );
+
+const serverGet = async (interaction: CommandInteraction) => {
+    const serverId = interaction.guild?.id;
+
+    try {
+        if (serverId) {
+            logger.info('Getting role configuration', { serverId });
+
+            const serverConfig: ServerConfig = await pg.queryBuilder()
+                .select('contractAddress')
+                .from('server')
+                .andWhere('externalId', '=', serverId)
+                .first();
+
+            if (!serverConfig) {
+                return interaction.reply({ content: 'No server configuration found', ephemeral: true });
+            }
+
+            interaction.reply({ content: formatBulletPointList([
+                `Contract Address: ${serverConfig.contractAddress || process.env.DEFAULT_CONTRACT}`,
+            ], `Server is configured as follows:`), ephemeral: true });
+        } else {
+            interaction.reply({ content: 'No role configuration found', ephemeral: true });
+        }
+    } catch (error) {
+        logger.error('Error fetching role configuration', {
+            serverId,
+            error,
+        });
+        interaction.reply({ content: 'There was an error while fetching the server configuration', ephemeral: true });
+    }
+};
 
 const serverUpdate = async (interaction: CommandInteraction) => {
     let contractAddress = interaction.options.get('contract-address')?.value as string | null;
@@ -31,6 +71,8 @@ const serverUpdate = async (interaction: CommandInteraction) => {
                 .update({ contractAddress });
 
             interaction.reply({ content: 'Server configuration has been updated', ephemeral: true });
+
+            await verifyNftForServer(interaction.guild);
         } else {
             interaction.reply({ content: 'No server found', ephemeral: true });
         }
@@ -47,6 +89,9 @@ export const execute = async (interaction: CommandInteraction) => {
     const subcommand = (<any>interaction.options).getSubcommand();
 
     switch (subcommand) {
+        case 'get':
+            await serverGet(interaction);
+            break;
         case 'update':
             await serverUpdate(interaction);
             break;
