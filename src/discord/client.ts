@@ -9,7 +9,7 @@ interface ClientWithCommands extends Client {
     commands: Collection<string, Command>;
 }
 
-const client = new Client({ intents: [GatewayIntentBits.GuildMembers, GatewayIntentBits.Guilds, GatewayIntentBits.GuildPresences] }) as ClientWithCommands;
+const client = new Client({ intents: [GatewayIntentBits.GuildMembers, GatewayIntentBits.Guilds] }) as ClientWithCommands;
 client.login(process.env.TOKEN);
 client.commands = new Collection();
 
