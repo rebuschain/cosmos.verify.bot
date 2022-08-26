@@ -68,9 +68,11 @@ export const routes = [
             const holder = await pg.queryBuilder()
                 .from('holder')
                 .where('externalServerId', body.serverId)
-                .where('address', '=', body.address)
-                    .orWhere('ethAddress', '=', ethAddress)
-                .where('userId', '=', body.userId)
+                .andWhere('userId', '=', body.userId)
+                .andWhere(function() {
+                    this.where('address', '=', body.address)
+                        .orWhere('ethAddress', '=', ethAddress);
+                })
                 .first();
 
             if (holder) {

@@ -158,7 +158,7 @@ export const verifyNftForAllUsers = async () => {
                     continue;
                 }
 
-                const serverRoles = rolesByExternalServerId[serverId];
+                const serverRoles = rolesByExternalServerId[serverId] || [];
 
                 await verifyNftForUser(server, serverConfig, serverRoles, member, holders.map(({ ethAddress }) => ethAddress));
             }
