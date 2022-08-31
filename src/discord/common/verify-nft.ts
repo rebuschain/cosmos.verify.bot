@@ -53,9 +53,9 @@ const ownerOf = async (tokenId: string, contractAddress = '') => {
         const owner = await contract.methods.ownerOf(tokenId).call();
 
         return owner;
-    } catch (err) {
-        logger.error('Failed to get token owner', { tokenId, contractAddress, err });
-        return null;
+    } catch (error: any) {
+        logger.error('Failed to get token owner', { tokenId, contractAddress, error: error?.message || error });
+        throw error;
     }
 };
 
@@ -65,9 +65,9 @@ const balanceOf = async (address, contractAddress = '') => {
         const balance = await contract.methods.balanceOf(address).call();
 
         return parseFloat(balance) || 0;
-    } catch (err) {
-        logger.error('Failed to get token balance', { address, contractAddress, err });
-        return null;
+    } catch (error: any) {
+        logger.error('Failed to get token balance', { address, contractAddress, error: error?.message || error });
+        throw error;
     }
 };
 
@@ -91,9 +91,9 @@ const getTokenMeta = async (tokenId: string, contractAddress = '') => {
         }
 
         return null;
-    } catch (err) {
-        logger.error('Failed to get token meta', { tokenId, contractAddress, err });
-        return null;
+    } catch (error: any) {
+        logger.error('Failed to get token meta', { tokenId, contractAddress, error: error?.message || error });
+        throw error;
     }
 };
 
@@ -221,8 +221,8 @@ export const verifyNftForServer = async (server: Guild) => {
         }
 
         logger.info('Finished verifying users for server', logInfo);
-    } catch (error) {
-        logger.error('Error verify users for server', { ...logInfo, error });
+    } catch (error: any) {
+        logger.error('Error verify users for server', { ...logInfo, error: error?.message || error });
     }
 };
 
@@ -330,7 +330,7 @@ export const verifyNftForAllUsers = async () => {
 
         logger.info('Finished verifying all users');
     } catch (error) {
-        logger.error('Error verify all users', { error });
+        logger.error('Error verify all users', error);
     }
 };
 
