@@ -280,12 +280,15 @@ export const verifyNftForAllUsers = async () => {
             .select('ethAddress', 'userId')
             .from('holder')
             .whereIn('externalServerId', serverIds);
-        const holdersByUserId = holders.reduce((acc, holder) => {
-            if (!acc[holder.userId]) {
-                acc[holder.userId] = [holder];
+        const holdersByUserIdAndServerId = holders.reduce((acc, holder) => {
+            const key = `${holder.externalServerId}${holder.userId}`;
+
+            if (!acc[key]) {
+                acc[key] = [holder];
             } else {
-                acc[holder.userId].push(holder);
+                acc[key].push(holder);
             }
+
             return acc;
         }, {} as { [userId: string]: Holder[] });
 
@@ -317,7 +320,7 @@ export const verifyNftForAllUsers = async () => {
             await server.members.fetch();
 
             for (const member of server.members.cache.values()) {
-                const holders = holdersByUserId[member.id];
+                const holders = holdersByUserIdAndServerId[`${serverId}${member.id}`];
                 if (!holders) {
                     continue;
                 }
