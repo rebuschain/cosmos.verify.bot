@@ -4,6 +4,7 @@ export type ServerConfig = {
     contractAddress: string | null;
     categoryChannelId: string | null;
     generalChannelId: string | null;
+    disablePrivateMessages: boolean;
 }
 
 export type Role = {
@@ -14,6 +15,7 @@ export type Role = {
     tokenId: string;
     minBalance: string;
     metaCondition: string;
+    rebusNftid: string;
 }
 
 export type Nonce = {

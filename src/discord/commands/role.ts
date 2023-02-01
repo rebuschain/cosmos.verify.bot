@@ -30,6 +30,7 @@ export const data = new SlashCommandBuilder()
             .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("-1" to remove)'))
             .addNumberOption(option => option.setName('min-balance').setDescription('The min balance of the token required ("-1" to remove)'))
             .addStringOption(option => option.setName('meta-condition').setDescription('The dynamic meta condition of the token required ("null" to remove)'))
+            .addStringOption(option => option.setName('rebus-nftid').setDescription('The configuration string for rebus nftid ("null" to remove)'))
     )
     .addSubcommand(subcommand =>
 		subcommand
@@ -45,6 +46,7 @@ export const data = new SlashCommandBuilder()
             .addIntegerOption(option => option.setName('token-id').setDescription('The token ID required ("-1" to remove)'))
             .addNumberOption(option => option.setName('min-balance').setDescription('The min balance of the token required ("-1" to remove)'))
             .addStringOption(option => option.setName('meta-condition').setDescription('The dynamic meta condition of the token required ("null" to remove)'))
+            .addStringOption(option => option.setName('rebus-nftid').setDescription('The configuration string for rebus nftid ("null" to remove)'))
     );
 
 const getRoleProperties = (interaction: CommandInteraction) => {
@@ -59,11 +61,30 @@ const getRoleProperties = (interaction: CommandInteraction) => {
     }
     let metaCondition = interaction.options.get('meta-condition')?.value as string | null;
     if (typeof metaCondition !== 'undefined') {
-        metaCondition = metaCondition?.toLowerCase() === 'null' ? null : metaCondition;
+        metaCondition = metaCondition?.trim()?.toLowerCase() === 'null' ? null : metaCondition;
+    }
+    let rebusNftid = interaction.options.get('rebus-nftid')?.value as string | null;
+    if (typeof rebusNftid !== 'undefined') {
+        rebusNftid = rebusNftid?.trim()?.toLowerCase() === 'null' ? null : rebusNftid;
     }
 
-    return { tokenId, minBalance, metaCondition };
+    return { tokenId, minBalance, metaCondition, rebusNftid };
 }
+
+const getParsedRebusNftid = (rebusNftid: string | null) => {
+    const splitRebusNftid = rebusNftid?.split(',');
+    let parsedRebusNftid: string | null = null;
+
+    if (splitRebusNftid) {    
+        if (splitRebusNftid.length <= 1) {
+            throw new Error('Missing parameters in rebus-nftid configuration, please use help command to learn more');
+        }
+
+        parsedRebusNftid = splitRebusNftid.map(x => x.substring(0, 24)).slice(0, 3).join(',');
+    }
+
+    return parsedRebusNftid;
+};
 
 const roleList = async (interaction: CommandInteraction) => {
     const serverId = interaction.guild?.id;
@@ -139,12 +160,14 @@ const roleGet = async (interaction: CommandInteraction) => {
 const roleAdd = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
     const { role } = target;
-    const { tokenId, minBalance, metaCondition } = getRoleProperties(interaction);
+    const { tokenId, minBalance, metaCondition, rebusNftid } = getRoleProperties(interaction);
     const serverId = interaction.guild?.id;
     const logInfo = { serverId, roleId: role?.id, roleName: role?.name, tokenId, minBalance, metaCondition };
 
     try {
         if (role && serverId) {
+            const parsedRebusNftid = getParsedRebusNftid(rebusNftid);
+
             logger.info('Adding role', logInfo);
 
             const existingRole: Role = await pg.queryBuilder()
@@ -173,6 +196,7 @@ const roleAdd = async (interaction: CommandInteraction) => {
                         tokenId,
                         minBalance,
                         metaCondition,
+                        rebusNftid: parsedRebusNftid,
                     });
 
                 interaction.reply({ content: `Role configuration "${role.name}" added`, ephemeral: true });
@@ -243,13 +267,15 @@ const roleRemove = async (interaction: CommandInteraction) => {
 const roleUpdate = async (interaction: CommandInteraction) => {
     const target = interaction.options.get('role', true);
     const { role } = target;
-    const { tokenId, minBalance, metaCondition } = getRoleProperties(interaction);
+    const { tokenId, minBalance, metaCondition, rebusNftid } = getRoleProperties(interaction);
     const serverId = interaction.guild?.id;
     const logInfo = { serverId, roleId: role?.id, roleName: role?.name, tokenId, minBalance, metaCondition };
 
     try {
         if (role && serverId) {
-            logger.info('Adding role', logInfo);
+            const parsedRebusNftid = getParsedRebusNftid(rebusNftid);
+
+            logger.info('Updating role', logInfo);
 
             const existingRole: Role = await pg.queryBuilder()
                 .select('*')
@@ -267,6 +293,7 @@ const roleUpdate = async (interaction: CommandInteraction) => {
                         tokenId,
                         minBalance,
                         metaCondition,
+                        rebusNftid: parsedRebusNftid,
                     });
 
                 interaction.reply({ content: 'Role configuration has been updated', ephemeral: true });

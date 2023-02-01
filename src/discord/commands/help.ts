@@ -43,10 +43,12 @@ ${formatBulletPointList([
     'min-balance: The minimum balance required for the user to be assigned to the specified role (Setting to less than 0 will make it be removed)',
     `meta-condition: The condition that the meta properties of the NFT must be matched to in order for the user to be assigned to the specified role (Setting to "null" will make it be removed)
     Example: "name === 'Spooky Pet #3462' && !!attributes.find((attr) => attr.trait_type === 'Landscape')"`,
+    `rebus-nftid: The configuration string for the required nftid to be owned by the user (Setting to "null" will make it be removed)
+    Example: "v1,rebus,require-activation" where the first item is the version, second item is the organization, and third item specifies if activation is required`,
 ], 'The updateable properties are:')}`, ephemeral: true });
             break;
         case 'server':
-            interaction.reply({ content: 'Command only available for admin users. It is used to update the configuration of the server. The updateable properties are: "contract-address"', ephemeral: true });
+            interaction.reply({ content: 'Command only available for admin users. It is used to update the configuration of the server. The updateable properties are: "contract-address" and "disablePrivateMessages"', ephemeral: true });
             break;
         default:
             interaction.reply({ content: 'Invalid subcommand', ephemeral: true });
