@@ -7,11 +7,13 @@ import { pg } from '../../db/connection';
 import { Holder, Role, ServerConfig } from '../../db/types';
 import { client } from '../client';
 import { formatBulletPointList } from '../utils/messages';
+import { RebusNftId } from '../types';
 
 const {
     DEFAULT_CONTRACT,
     ETHEREUM_NODE,
     EXPLORER_URL,
+    REBUS_API_URL,
 } = process.env;
 
 const CACHE_TIME = 300000;
@@ -97,7 +99,9 @@ const getTokenMeta = async (tokenId: string, contractAddress = '') => {
     }
 };
 
-const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serverRoles: Role[], member: GuildMember, addresses: string[], isRoleDeleted = false) => {
+const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serverRoles: Role[], member: GuildMember, holders: Holder[], isRoleDeleted = false) => {
+    const ethAddresses = holders.map(({ ethAddress }) => ethAddress).filter(Boolean);
+    const rebusAddresses = holders.map(({ address }) => address).filter(Boolean);
     const serverId = server.id;
     const userId = member.user.id;
     const rolesAdded: string[] = [];
@@ -106,21 +110,21 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
 
     for (const role of serverRoles) {
         const roleName = server?.roles.cache.get(role.externalId)?.name as string;
-        const logInfo = { addresses, userId, serverId, role };
+        const logInfo = { ethAddresses, rebusAddresses, userId, serverId, role };
         const userHasRole = !!member.roles.cache.get(role.externalId);
         let userHasAccessToRole = false;
 
         if (!isRoleDeleted) {
             const roleHasTokenId = parseInt(role.tokenId, 10) >= 0;
             const tokenOwner = roleHasTokenId ? await ownerOf(role.tokenId, serverConfig.contractAddress as string) : null;
-            userHasAccessToRole = tokenOwner && addresses.includes(tokenOwner);
+            userHasAccessToRole = tokenOwner && ethAddresses.includes(tokenOwner);
 
             const minBalance = parseFloat(role.minBalance);
 
             if (!isNaN(minBalance) && minBalance > 0) {
                 userHasAccessToRole = false;
 
-                for (const address of addresses) {
+                for (const address of ethAddresses) {
                     const balance = await balanceOf(address, serverConfig.contractAddress as string);
 
                     if (balance !== null && balance >= minBalance) {
@@ -142,6 +146,23 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
                         if (!error?.message?.includes('Cannot read properties of undefined')) {
                             logger.error('Failed to evaluate meta condition', logInfo);
                         }
+                    }
+                }
+            }
+
+            if (role.rebusNftid) {
+                userHasAccessToRole = false;
+
+                const config = role.rebusNftid.split(',');
+                const requiresActivation = config[2] === 'require-activation';
+
+                for (const address of rebusAddresses) {
+                    const nftidRes = await axios.get<RebusNftId>(`${REBUS_API_URL}/rebus/nftid/v1beta1/id_record/${config[0]}/${config[1]}/${address}`);
+                    const nftid = nftidRes.data;
+
+                    if (nftid && (!requiresActivation || nftid.id_record?.active)) {
+                        userHasAccessToRole = true;
+                        break;
                     }
                 }
             }
@@ -174,7 +195,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
     const rolesRemovedList = rolesRemoved.length ? formatBulletPointList(rolesRemoved, 'You have been removed from the following roles:') : '';
     const content = `For server: ${server.name} (${server.id})\n${rolesAddedList}${rolesAdded.length ? '\n' : ''}${rolesRemovedList}`;
 
-    if (rolesAdded.length || rolesRemoved.length) {
+    if (!serverConfig.disablePrivateMessages && (rolesAdded.length || rolesRemoved.length)) {
         await member.send(content);
     }
 };
@@ -186,7 +207,7 @@ export const verifyNftForServer = async (server: Guild) => {
         logger.info('Verifying users for server', logInfo);
 
         const holders: Holder[] = await pg.queryBuilder()
-            .select('ethAddress', 'userId')
+            .select('address', 'ethAddress', 'userId')
             .from('holder')
             .where('externalServerId', '=', server.id);
         const holdersByUserId = holders.reduce((acc, holder) => {
@@ -204,7 +225,7 @@ export const verifyNftForServer = async (server: Guild) => {
             .where('externalServerId', '=', server.id);
 
         const serverConfig: ServerConfig = await pg.queryBuilder()
-            .select('contractAddress')
+            .select('contractAddress', 'disablePrivateMessages')
             .from('server')
             .where('externalId', '=', server.id)
             .first();
@@ -217,7 +238,7 @@ export const verifyNftForServer = async (server: Guild) => {
                 continue;
             }
 
-            await verifyNftForUser(server, serverConfig, serverRoles, member, holders.map(({ ethAddress }) => ethAddress));
+            await verifyNftForUser(server, serverConfig, serverRoles, member, holders);
         }
 
         logger.info('Finished verifying users for server', logInfo);
@@ -233,7 +254,7 @@ export const verifyNftForRole = async (server: Guild, role: Role, isRoleDeleted 
         logger.info('Verifying users for role', logInfo);
 
         const holders: Holder[] = await pg.queryBuilder()
-            .select('ethAddress', 'userId')
+            .select('address', 'ethAddress', 'userId')
             .from('holder')
             .where('externalServerId', '=', server.id);
         const holdersByUserId = holders.reduce((acc, holder) => {
@@ -246,7 +267,7 @@ export const verifyNftForRole = async (server: Guild, role: Role, isRoleDeleted 
         }, {} as { [userId: string]: Holder[] });
 
         const serverConfig: ServerConfig = await pg.queryBuilder()
-            .select('contractAddress')
+            .select('contractAddress', 'disablePrivateMessages')
             .from('server')
             .where('externalId', '=', server.id)
             .first();
@@ -259,12 +280,12 @@ export const verifyNftForRole = async (server: Guild, role: Role, isRoleDeleted 
                 continue;
             }
 
-            await verifyNftForUser(server, serverConfig, [role], member, holders.map(({ ethAddress }) => ethAddress), isRoleDeleted);
+            await verifyNftForUser(server, serverConfig, [role], member, holders, isRoleDeleted);
         }
 
         logger.info('Finished verifying users for role', logInfo);
     } catch (error) {
-        logger.error('Error verify users for role', { ...logInfo, error });
+        logger.error('Error verify users for role', { ...logInfo, error: (error as any)?.message || error });
     }
 };
 
@@ -277,7 +298,7 @@ export const verifyNftForAllUsers = async () => {
         const serverIds = client.guilds.cache.map(({ id }) => id);
 
         const holders: Holder[] = await pg.queryBuilder()
-            .select('ethAddress', 'userId')
+            .select('externalServerId', 'address', 'ethAddress', 'userId')
             .from('holder')
             .whereIn('externalServerId', serverIds);
         const holdersByUserIdAndServerId = holders.reduce((acc, holder) => {
@@ -312,7 +333,7 @@ export const verifyNftForAllUsers = async () => {
             }
 
             const serverConfig: ServerConfig = await pg.queryBuilder()
-                .select('contractAddress')
+                .select('contractAddress', 'disablePrivateMessages')
                 .from('server')
                 .where('externalId', '=', serverId)
                 .first();
@@ -327,7 +348,7 @@ export const verifyNftForAllUsers = async () => {
 
                 const serverRoles = rolesByExternalServerId[serverId] || [];
 
-                await verifyNftForUser(server, serverConfig, serverRoles, member, holders.map(({ ethAddress }) => ethAddress));
+                await verifyNftForUser(server, serverConfig, serverRoles, member, holders);
             }
         }
 
@@ -362,17 +383,17 @@ export const onUserAuthorized = async (serverId: string, userId: string) => {
         }
 
         const serverConfig: ServerConfig = await pg.queryBuilder()
-            .select('contractAddress')
+            .select('contractAddress', 'disablePrivateMessages')
             .from('server')
             .where('externalId', '=', serverId)
             .first();
         const holders: Holder[] = await pg.queryBuilder()
-            .select('ethAddress')
+            .select('address', 'ethAddress')
             .from('holder')
             .where('externalServerId', '=', serverId)
             .andWhere('userId', '=', userId);
 
-        await verifyNftForUser(server, serverConfig, roles, member, holders.map(({ ethAddress }) => ethAddress));
+        await verifyNftForUser(server, serverConfig, roles, member, holders);
 
         logger.info('Finished on user authorized', rootLogInfo);
     } catch (error) {

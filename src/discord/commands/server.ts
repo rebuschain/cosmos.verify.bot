@@ -21,6 +21,7 @@ export const data = new SlashCommandBuilder()
 			.setName('update')
 			.setDescription('Updates the configuration for a server')
 			.addStringOption(option => option.setName('contract-address').setDescription('The ERC721 contract address ("null" to remove)'))
+            .addBooleanOption(option => option.setName('disable-private-messages').setDescription('Whether to send private messages to users when they are assigned a role'))
     );
 
 const serverGet = async (interaction: CommandInteraction) => {
@@ -58,6 +59,7 @@ const serverGet = async (interaction: CommandInteraction) => {
 const serverUpdate = async (interaction: CommandInteraction) => {
     let contractAddress = interaction.options.get('contract-address')?.value as string | null;
     contractAddress = contractAddress?.toLowerCase() === 'null' ? null : contractAddress;
+    const disablePrivateMessages = interaction.options.get('disable-private-messages')?.value as boolean | null;
     const serverId = interaction.guild?.id;
     const logInfo = { serverId, contractAddress };
 
@@ -68,7 +70,7 @@ const serverUpdate = async (interaction: CommandInteraction) => {
             await pg.queryBuilder()
                 .from('server')
                 .where('externalId', '=', serverId)
-                .update({ contractAddress });
+                .update({ contractAddress, disablePrivateMessages });
 
             interaction.reply({ content: 'Server configuration has been updated', ephemeral: true });
 

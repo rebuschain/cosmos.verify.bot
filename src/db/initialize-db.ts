@@ -9,7 +9,14 @@ const initializeDB = async () => {
         table.string('contractAddress');
         table.string('categoryChannelId');
         table.string('generalChannelId');
+        table.boolean('disablePrivateMessages');
       });
+  } else {
+    if (!(await pg.schema.hasColumn('server', 'disablePrivateMessages'))) {
+      await pg.schema.table('server', table => {
+        table.boolean('disablePrivateMessages');
+      });
+    }
   }
 
   if (!(await pg.schema.hasTable('role'))) {
@@ -22,7 +29,14 @@ const initializeDB = async () => {
         table.string('tokenId');
         table.decimal('minBalance');
         table.string('metaCondition');
+        table.string('rebusNftid');
       });
+  } else {
+    if (!(await pg.schema.hasColumn('role', 'rebusNftid'))) {
+      await pg.schema.table('role', table => {
+        table.string('rebusNftid');
+      });
+    }
   }
 
   if (!(await pg.schema.hasTable('nonce'))) {
