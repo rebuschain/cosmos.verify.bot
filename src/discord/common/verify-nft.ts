@@ -150,6 +150,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
                 }
             }
 
+            console.log(role.rebusNftid)
             if (role.rebusNftid) {
                 userHasAccessToRole = false;
 
@@ -159,6 +160,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
                 for (const address of rebusAddresses) {
                     const nftidRes = await axios.get<RebusNftId>(`${REBUS_API_URL}/rebus/nftid/v1beta1/id_record/${config[0]}/${config[1]}/${address}`);
                     const nftid = nftidRes.data;
+                    console.log(address, nftid)
 
                     if (nftid && (!requiresActivation || nftid.id_record?.active)) {
                         userHasAccessToRole = true;
@@ -180,6 +182,7 @@ const verifyNftForUser = async (server: Guild, serverConfig: ServerConfig, serve
             }
         } catch (err: any) {
             if (err?.status === 403) {
+                logger.error('Failed to add/remove role from user', { ...logInfo, staus: err?.status, message: err?.message });
                 rolesWithPermissionError.push(roleName);
             } else {
                 throw err;
