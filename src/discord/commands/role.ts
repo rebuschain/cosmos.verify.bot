@@ -143,6 +143,7 @@ const roleGet = async (interaction: CommandInteraction) => {
                 `Token ID: ${roleConfig.tokenId}`,
                 `Min Balance: ${roleConfig.minBalance}`,
                 `Meta Condition: ${roleConfig.metaCondition}`,
+                `Rebus NFTID: ${roleConfig.rebusNftid}`,
             ], `Role "${role.name}" is configured as follows:`), ephemeral: true });
         } else {
             interaction.reply({ content: 'No role configuration found', ephemeral: true });
